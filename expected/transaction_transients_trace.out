@@ -6,7 +6,7 @@ LOAD 'transaction_transients_trace';
 -- No temp relations yet: GUC should be off.
 SHOW ttt.owns_session_objs;
  ttt.owns_session_objs 
-----------------------------
+-----------------------
  off
 (1 row)
 
@@ -24,7 +24,7 @@ SELECT 1;
 -- Now the session owns a temp relation: GUC should be on.
 SHOW ttt.owns_session_objs;
  ttt.owns_session_objs 
-----------------------------
+-----------------------
  on
 (1 row)
 
@@ -40,7 +40,7 @@ SELECT 1;
 -- No temp relations anymore: GUC should be off again.
 SHOW ttt.owns_session_objs;
  ttt.owns_session_objs 
-----------------------------
+-----------------------
  off
 (1 row)
 
@@ -62,7 +62,7 @@ SELECT make_temp();
 -- The session now owns a temp relation again: GUC should be on.
 SHOW ttt.owns_session_objs;
  ttt.owns_session_objs 
-----------------------------
+-----------------------
  on
 (1 row)
 
@@ -77,7 +77,7 @@ SELECT 1;
 -- No temp relations anymore: GUC should be off again.
 SHOW ttt.owns_session_objs;
  ttt.owns_session_objs 
-----------------------------
+-----------------------
  off
 (1 row)
 
