@@ -115,7 +115,7 @@ static void
 ttt_ExecutorEnd(QueryDesc *queryDesc)
 {
 	/* ReportGUCOption() is not supported in parallel workers */
-	if (!IsParallelWorker() && !ttt_session_owns_temp_rels_valid)
+	if (AmRegularBackendProcess() && !ttt_session_owns_temp_rels_valid)
 	{
 		Oid tempNamespace;
 		Oid tempTOASTNamespace;
