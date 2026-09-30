@@ -31,7 +31,7 @@ PG_MODULE_MAGIC_EXT(
 					.version = PG_VERSION
 );
 
-#define TTT_GUC_NAME "ttt.session_owns_temp_rels"
+#define TTT_GUC_NAME "ttt.owns_session_objs"
 
 /* GUC variables */
 static bool ttt_session_owns_temp_rels = false;

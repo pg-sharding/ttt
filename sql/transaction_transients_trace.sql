@@ -1,4 +1,4 @@
--- Test transaction_transients_trace module: the ttt.session_owns_temp_rels GUC
+-- Test transaction_transients_trace module: the ttt.owns_session_objs GUC
 -- should reflect whether the current session owns any temporary relations.
 
 -- Initially the module is not loaded; the custom GUC is unknown and reads as
@@ -6,7 +6,7 @@
 LOAD 'transaction_transients_trace';
 
 -- No temp relations yet: GUC should be off.
-SHOW ttt.session_owns_temp_rels;
+SHOW ttt.owns_session_objs;
 
 -- Create a temp table.  This is a utility command, so ProcessUtility runs
 -- first and invalidates the cached GUC value.  The subsequent ExecutorEnd
@@ -17,7 +17,7 @@ CREATE TEMP TABLE z2();
 SELECT 1;
 
 -- Now the session owns a temp relation: GUC should be on.
-SHOW ttt.session_owns_temp_rels;
+SHOW ttt.owns_session_objs;
 
 -- Drop the temp table (another utility command -> invalidation).
 DROP TABLE z2;
@@ -26,7 +26,7 @@ DROP TABLE z2;
 SELECT 1;
 
 -- No temp relations anymore: GUC should be off again.
-SHOW ttt.session_owns_temp_rels;
+SHOW ttt.owns_session_objs;
 
 -- Now test creating a temp table from within a PL/pgSQL function.  The
 -- nested CREATE TEMP TABLE still goes through ProcessUtility (invalidating
@@ -41,14 +41,14 @@ END $$;
 SELECT make_temp();
 
 -- The session now owns a temp relation again: GUC should be on.
-SHOW ttt.session_owns_temp_rels;
+SHOW ttt.owns_session_objs;
 
 -- Drop the temp table and trigger a recompute.
 DROP TABLE z3;
 SELECT 1;
 
 -- No temp relations anymore: GUC should be off again.
-SHOW ttt.session_owns_temp_rels;
+SHOW ttt.owns_session_objs;
 
 -- Cleanup.
 DROP FUNCTION make_temp();
