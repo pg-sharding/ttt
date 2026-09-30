@@ -1,11 +1,11 @@
--- Test transaction_transients_trace module: the ttt.session_owns_temp_rels GUC
+-- Test transaction_transients_trace module: the ttt.owns_session_objs GUC
 -- should reflect whether the current session owns any temporary relations.
 -- Initially the module is not loaded; the custom GUC is unknown and reads as
 -- an empty/off value.  Load the module to install the hooks.
 LOAD 'transaction_transients_trace';
 -- No temp relations yet: GUC should be off.
-SHOW ttt.session_owns_temp_rels;
- ttt.session_owns_temp_rels 
+SHOW ttt.owns_session_objs;
+ ttt.owns_session_objs 
 ----------------------------
  off
 (1 row)
@@ -22,8 +22,8 @@ SELECT 1;
 (1 row)
 
 -- Now the session owns a temp relation: GUC should be on.
-SHOW ttt.session_owns_temp_rels;
- ttt.session_owns_temp_rels 
+SHOW ttt.owns_session_objs;
+ ttt.owns_session_objs 
 ----------------------------
  on
 (1 row)
@@ -38,8 +38,8 @@ SELECT 1;
 (1 row)
 
 -- No temp relations anymore: GUC should be off again.
-SHOW ttt.session_owns_temp_rels;
- ttt.session_owns_temp_rels 
+SHOW ttt.owns_session_objs;
+ ttt.owns_session_objs 
 ----------------------------
  off
 (1 row)
@@ -60,8 +60,8 @@ SELECT make_temp();
 (1 row)
 
 -- The session now owns a temp relation again: GUC should be on.
-SHOW ttt.session_owns_temp_rels;
- ttt.session_owns_temp_rels 
+SHOW ttt.owns_session_objs;
+ ttt.owns_session_objs 
 ----------------------------
  on
 (1 row)
@@ -75,8 +75,8 @@ SELECT 1;
 (1 row)
 
 -- No temp relations anymore: GUC should be off again.
-SHOW ttt.session_owns_temp_rels;
- ttt.session_owns_temp_rels 
+SHOW ttt.owns_session_objs;
+ ttt.owns_session_objs 
 ----------------------------
  off
 (1 row)
