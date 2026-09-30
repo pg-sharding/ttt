@@ -22,6 +22,7 @@
 #include "executor/executor.h"
 #include "libpq/protocol.h"
 #include "libpq/pqformat.h"
+#include "miscadmin.h"
 #include "tcop/dest.h"
 #include "tcop/utility.h"
 #include "tcop/tcopprot.h"
