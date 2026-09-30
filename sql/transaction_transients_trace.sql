@@ -8,46 +8,27 @@ LOAD 'transaction_transients_trace';
 -- No temp relations yet: GUC should be off.
 SHOW ttt.owns_session_objs;
 
--- Create a temp table.  This is a utility command, so ProcessUtility runs
--- first and invalidates the cached GUC value.  The subsequent ExecutorEnd
--- (from the next query) recomputes it.
+-- Create a temp table.  The ProcessUtility hook recalculates and reports
+-- the GUC right away.
 CREATE TEMP TABLE z2();
-
--- Trigger ExecutorEnd so the GUC gets recomputed and reported.
-SELECT 1;
-
--- Now the session owns a temp relation: GUC should be on.
 SHOW ttt.owns_session_objs;
 
--- Drop the temp table (another utility command -> invalidation).
+-- Drop the temp table.
 DROP TABLE z2;
-
--- Trigger ExecutorEnd to recompute.
-SELECT 1;
-
--- No temp relations anymore: GUC should be off again.
 SHOW ttt.owns_session_objs;
 
 -- Now test creating a temp table from within a PL/pgSQL function.  The
--- nested CREATE TEMP TABLE still goes through ProcessUtility (invalidating
--- the cached value), and the outer SELECT's ExecutorEnd recomputes it.
+-- nested CREATE TEMP TABLE still goes through ProcessUtility.
 CREATE FUNCTION make_temp() RETURNS void
 LANGUAGE plpgsql AS $$
 BEGIN
   CREATE TEMP TABLE z3();
 END $$;
 
--- Calling the function creates the temp table as a utility subcommand.
 SELECT make_temp();
-
--- The session now owns a temp relation again: GUC should be on.
 SHOW ttt.owns_session_objs;
 
--- Drop the temp table and trigger a recompute.
 DROP TABLE z3;
-SELECT 1;
-
--- No temp relations anymore: GUC should be off again.
 SHOW ttt.owns_session_objs;
 
 -- Cleanup.
