@@ -23,6 +23,7 @@ tests += {
   'regress': {
     'sql': [
       'transaction_transients_trace',
+      'parallel_worker',
     ],
   },
 }

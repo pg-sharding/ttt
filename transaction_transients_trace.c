@@ -15,6 +15,7 @@
 
 #include "access/genam.h"
 #include "access/table.h"
+#include "access/parallel.h"
 #include "access/relscan.h"
 #include "catalog/pg_class.h"
 #include "catalog/namespace.h"
@@ -113,7 +114,8 @@ tttRecalculate(Oid nsp)
 static void
 ttt_ExecutorEnd(QueryDesc *queryDesc)
 {
-	if (!ttt_session_owns_temp_rels_valid)
+	/* ReportGUCOption() is not supported in parallel workers */
+	if (!IsParallelWorker() && !ttt_session_owns_temp_rels_valid)
 	{
 		Oid tempNamespace;
 		Oid tempTOASTNamespace;
