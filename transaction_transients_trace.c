@@ -13,7 +13,9 @@
  */
 #include "postgres.h"
 
+#include "access/genam.h"
 #include "access/table.h"
+#include "access/relscan.h"
 #include "catalog/pg_class.h"
 #include "catalog/namespace.h"
 #include "executor/executor.h"
