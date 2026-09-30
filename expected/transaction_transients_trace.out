@@ -81,5 +81,32 @@ SHOW ttt.owns_session_objs;
  off
 (1 row)
 
+-- Functions in pg_temp are session objects too.
+CREATE FUNCTION pg_temp.f() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;
+SELECT 1;
+ ?column? 
+----------
+        1
+(1 row)
+
+SHOW ttt.owns_session_objs;
+ ttt.owns_session_objs 
+-----------------------
+ on
+(1 row)
+
+DROP FUNCTION pg_temp.f();
+SELECT 1;
+ ?column? 
+----------
+        1
+(1 row)
+
+SHOW ttt.owns_session_objs;
+ ttt.owns_session_objs 
+-----------------------
+ off
+(1 row)
+
 -- Cleanup.
 DROP FUNCTION make_temp();

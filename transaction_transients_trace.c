@@ -16,7 +16,9 @@
 #include "access/genam.h"
 #include "access/table.h"
 #include "access/relscan.h"
-#include "catalog/pg_class.h"
+#include "catalog/indexing.h"
+#include "catalog/pg_depend.h"
+#include "catalog/pg_namespace.h"
 #include "catalog/namespace.h"
 #include "executor/executor.h"
 #include "libpq/protocol.h"
@@ -79,20 +81,31 @@ ReportGUCOption(void)
 static void
 tttRecalculate(Oid nsp)
 {
-	Relation relRelation;
-	ScanKeyData skey;
+	Relation depRelation;
+	ScanKeyData skey[2];
 	SysScanDesc scan;
-	HeapTuple	tuple;
+	HeapTuple tuple;
 
-	/* Prepare to scan pg_index for entries having indrelid = this rel. */
-	relRelation = table_open(RelationRelationId, AccessShareLock);
-	ScanKeyInit(&skey,
-				Anum_pg_class_relnamespace,
+	/* No temp namespace: the session owns no session objects */
+	if (!OidIsValid(nsp))
+	{
+		ttt_session_owns_temp_rels = false;
+		return;
+	}
+
+	/* Look for any object depending on the temp schema */
+	ScanKeyInit(&skey[0],
+				Anum_pg_depend_refclassid,
+				BTEqualStrategyNumber, F_OIDEQ,
+				ObjectIdGetDatum(NamespaceRelationId));
+	ScanKeyInit(&skey[1],
+				Anum_pg_depend_refobjid,
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(nsp));
 
-	scan = systable_beginscan(relRelation, ClassNameNspIndexId, true,
-							  NULL, 1, &skey);
+	depRelation = table_open(DependRelationId, AccessShareLock);
+	scan = systable_beginscan(depRelation, DependReferenceIndexId, true,
+							  NULL, 2, skey);
 
 	if (HeapTupleIsValid(tuple = systable_getnext(scan)))
 	{
@@ -104,7 +117,7 @@ tttRecalculate(Oid nsp)
 	}
 
 	systable_endscan(scan);
-	table_close(relRelation, AccessShareLock);
+	table_close(depRelation, AccessShareLock);
 }
 
 /*
