@@ -115,15 +115,22 @@ func runTestFlow(t *testing.T, c *Conn, tt []MessageGroup) {
 
 func connectOrSkip(t *testing.T) *Conn {
 	t.Helper()
-	host := os.Getenv("PGHOST")
-	if host == "" {
-		host = "127.0.0.1"
+	explicit := false
+	for _, key := range []string{"PGHOST", "PGPORT", "PGUSER", "PGPASSWORD", "PGDATABASE"} {
+		if os.Getenv(key) != "" {
+			explicit = true
+			break
+		}
 	}
+	host := envOr("PGHOST", "127.0.0.1")
 	port, _ := strconv.Atoi(envOr("PGPORT", "5437"))
 
 	conn, _, err := Connect(host, port, envOr("PGUSER", "postgres"),
 		envOr("PGPASSWORD", "1234"), envOr("PGDATABASE", "postgres"))
 	if err != nil {
+		if explicit {
+			t.Fatalf("PostgreSQL at %s:%d: %v", host, port, err)
+		}
 		t.Skipf("PostgreSQL at %s:%d unreachable: %v", host, port, err)
 	}
 	t.Cleanup(func() { conn.Close() })
@@ -194,6 +201,13 @@ func TestXproto(t *testing.T) {
 			},
 		},
 		{
+			Request: "DROP TABLE wr_t2;",
+			Response: []Expectation{
+				CommandComplete("DROP TABLE"),
+				ReadyForQuery('I'),
+			},
+		},
+		{
 			Request: "BEGIN; DROP TABLE wr_t; ROLLBACK;",
 			Response: []Expectation{
 				CommandComplete("BEGIN"),
@@ -203,9 +217,11 @@ func TestXproto(t *testing.T) {
 			},
 		},
 		{
-			Request: "DROP TABLE wr_t2;",
+			Request: "SELECT current_setting('ttt.owns_session_objs');",
 			Response: []Expectation{
-				CommandComplete("DROP TABLE"),
+				RowDescription(),
+				DataRow("on"),
+				CommandComplete("SELECT 1"),
 				ReadyForQuery('I'),
 			},
 		},
