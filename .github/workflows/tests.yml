@@ -43,3 +43,21 @@ jobs:
         run: |
           docker build . --file docker/regress/Dockerfile.cpg --build-arg=PG_MAJOR=${{ matrix.version }} --tag ttt-regress-cassert:${{ matrix.version }}
           docker run ttt-regress-cassert:${{ matrix.version }}
+
+  odyssey:
+    name: odyssey pg_regress
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Check out code
+        uses: actions/checkout@v7
+
+      - name: Clone odyssey
+        run: git clone --depth 1 https://github.com/yandex/odyssey odyssey
+
+      - name: Build the Docker image
+        run: docker build . --file docker/regress/Dockerfile.odyssey --tag ttt-regress-odyssey:1234
+
+      - name: Run tests
+        run: docker run ttt-regress-odyssey:1234
