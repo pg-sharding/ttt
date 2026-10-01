@@ -24,3 +24,18 @@ SELECT current_setting('ttt.owns_session_objs'), to_regclass('pg_temp.rt');
 (1 row)
 
 DROP TABLE rt;
+SELECT current_setting('ttt.owns_session_objs'), to_regclass('pg_temp.t'),
+       to_regclass('pg_temp.rt');
+ current_setting | to_regclass | to_regclass 
+-----------------+-------------+-------------
+ on              | t           | 
+(1 row)
+
+DROP TABLE t;
+SELECT current_setting('ttt.owns_session_objs'), to_regclass('pg_temp.t'),
+       to_regclass('pg_temp.rt');
+ current_setting | to_regclass | to_regclass 
+-----------------+-------------+-------------
+ off             |             | 
+(1 row)
+

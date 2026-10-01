@@ -17,3 +17,9 @@ ROLLBACK;
 
 SELECT current_setting('ttt.owns_session_objs'), to_regclass('pg_temp.rt');
 DROP TABLE rt;
+SELECT current_setting('ttt.owns_session_objs'), to_regclass('pg_temp.t'),
+       to_regclass('pg_temp.rt');
+
+DROP TABLE t;
+SELECT current_setting('ttt.owns_session_objs'), to_regclass('pg_temp.t'),
+       to_regclass('pg_temp.rt');
