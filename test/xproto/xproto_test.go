@@ -116,7 +116,7 @@ func runTestFlow(t *testing.T, c *Conn, tt []MessageGroup) {
 func connectOrSkip(t *testing.T) *Conn {
 	t.Helper()
 	explicit := false
-	for _, key := range []string{"PGHOST", "PGPORT", "PGUSER", "PGPASSWORD", "PGDATABASE"} {
+	for _, key := range []string{"PGHOST", "PGPORT", "PGUSER", "PGDATABASE"} {
 		if os.Getenv(key) != "" {
 			explicit = true
 			break
@@ -126,7 +126,7 @@ func connectOrSkip(t *testing.T) *Conn {
 	port, _ := strconv.Atoi(envOr("PGPORT", "5437"))
 
 	conn, _, err := Connect(host, port, envOr("PGUSER", "postgres"),
-		envOr("PGPASSWORD", "1234"), envOr("PGDATABASE", "postgres"))
+		envOr("PGDATABASE", "postgres"))
 	if err != nil {
 		if explicit {
 			t.Fatalf("PostgreSQL at %s:%d: %v", host, port, err)
