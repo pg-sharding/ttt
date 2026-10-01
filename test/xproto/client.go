@@ -63,25 +63,29 @@ func Connect(host string, port int, user, database string) (*Conn, []pgproto3.Ba
 
 func (c *Conn) Close() error { return c.conn.Close() }
 
-// SimpleQuery returns the exact wire encoding of every backend message
-// up to (and including) ReadyForQuery. Frames are captured immediately:
+// RunQueries sends all simple queries as one batch and returns the exact
+// wire encoding of every backend message. Frames are captured immediately:
 // pgproto3.Frontend reuses its internal message structs across Receive calls.
-func (c *Conn) SimpleQuery(query string) ([][]byte, error) {
-	c.frontend.Send(&pgproto3.Query{String: query})
+func (c *Conn) RunQueries(queries []string) ([][]byte, error) {
+	for _, q := range queries {
+		c.frontend.Send(&pgproto3.Query{String: q})
+	}
 	if err := c.frontend.Flush(); err != nil {
 		return nil, err
 	}
 	var out [][]byte
-	for {
+	done := 0
+	for done < len(queries) {
 		msg, err := c.frontend.Receive()
 		if err != nil {
 			return out, err
 		}
 		out = append(out, mustEncode(msg))
 		if _, ok := msg.(*pgproto3.ReadyForQuery); ok {
-			return out, nil
+			done++
 		}
 	}
+	return out, nil
 }
 
 func mustEncode(m pgproto3.BackendMessage) []byte {

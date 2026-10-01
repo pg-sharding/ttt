@@ -12,7 +12,7 @@ import (
 const gucName = "ttt.owns_session_objs"
 
 type MessageGroup struct {
-	Request  string
+	Request  []string
 	Response []pgproto3.BackendMessage
 }
 
@@ -32,7 +32,7 @@ func equal(exp pgproto3.BackendMessage, got []byte) bool {
 func runTestFlow(t *testing.T, c *Conn, tt []MessageGroup) {
 	t.Helper()
 	for _, grp := range tt {
-		msgs, err := c.SimpleQuery(grp.Request)
+		msgs, err := c.RunQueries(grp.Request)
 		if err != nil {
 			t.Fatalf("%s: %v; messages: %x", grp.Request, err, msgs)
 		}
@@ -83,85 +83,57 @@ func TestXproto(t *testing.T) {
 
 	tt := []MessageGroup{
 		{
-			Request: "LOAD 'transaction_transients_trace';",
+			Request: []string{
+				"LOAD 'transaction_transients_trace';",
+				"SELECT 1;",
+				"SET enable_seqscan TO off;",
+				"BEGIN;",
+				"COMMIT;",
+				"CREATE TEMP TABLE wr_t(a int);",
+				"CREATE TEMP TABLE wr_t2(a int);",
+				"DROP TABLE wr_t2;",
+				"BEGIN; DROP TABLE wr_t; ROLLBACK;",
+				"SELECT current_setting('ttt.owns_session_objs');",
+				"DROP TABLE wr_t;",
+			},
 			Response: []pgproto3.BackendMessage{
 				&pgproto3.CommandComplete{CommandTag: []byte("LOAD")},
 				&pgproto3.ReadyForQuery{TxStatus: 'I'},
-			},
-		},
-		{
-			Request: "SELECT 1;",
-			Response: []pgproto3.BackendMessage{
+
 				&pgproto3.RowDescription{Fields: []pgproto3.FieldDescription{{Name: []byte("?column?"), DataTypeOID: 23, DataTypeSize: 4, TypeModifier: -1}}},
 				&pgproto3.DataRow{Values: [][]byte{[]byte("1")}},
 				&pgproto3.CommandComplete{CommandTag: []byte("SELECT 1")},
 				&pgproto3.ReadyForQuery{TxStatus: 'I'},
-			},
-		},
-		{
-			Request: "SET enable_seqscan TO off;",
-			Response: []pgproto3.BackendMessage{
+
 				&pgproto3.CommandComplete{CommandTag: []byte("SET")},
 				&pgproto3.ReadyForQuery{TxStatus: 'I'},
-			},
-		},
-		{
-			Request: "BEGIN;",
-			Response: []pgproto3.BackendMessage{
+
 				&pgproto3.CommandComplete{CommandTag: []byte("BEGIN")},
 				&pgproto3.ReadyForQuery{TxStatus: 'T'},
-			},
-		},
-		{
-			Request: "COMMIT;",
-			Response: []pgproto3.BackendMessage{
+
 				&pgproto3.CommandComplete{CommandTag: []byte("COMMIT")},
 				&pgproto3.ReadyForQuery{TxStatus: 'I'},
-			},
-		},
-		{
-			Request: "CREATE TEMP TABLE wr_t(a int);",
-			Response: []pgproto3.BackendMessage{
+
 				&pgproto3.ParameterStatus{Name: gucName, Value: "on"},
 				&pgproto3.CommandComplete{CommandTag: []byte("CREATE TABLE")},
 				&pgproto3.ReadyForQuery{TxStatus: 'I'},
-			},
-		},
-		{
-			Request: "CREATE TEMP TABLE wr_t2(a int);",
-			Response: []pgproto3.BackendMessage{
+
 				&pgproto3.CommandComplete{CommandTag: []byte("CREATE TABLE")},
 				&pgproto3.ReadyForQuery{TxStatus: 'I'},
-			},
-		},
-		{
-			Request: "DROP TABLE wr_t2;",
-			Response: []pgproto3.BackendMessage{
+
 				&pgproto3.CommandComplete{CommandTag: []byte("DROP TABLE")},
 				&pgproto3.ReadyForQuery{TxStatus: 'I'},
-			},
-		},
-		{
-			Request: "BEGIN; DROP TABLE wr_t; ROLLBACK;",
-			Response: []pgproto3.BackendMessage{
+
 				&pgproto3.CommandComplete{CommandTag: []byte("BEGIN")},
 				&pgproto3.CommandComplete{CommandTag: []byte("DROP TABLE")},
 				&pgproto3.CommandComplete{CommandTag: []byte("ROLLBACK")},
 				&pgproto3.ReadyForQuery{TxStatus: 'I'},
-			},
-		},
-		{
-			Request: "SELECT current_setting('ttt.owns_session_objs');",
-			Response: []pgproto3.BackendMessage{
+
 				&pgproto3.RowDescription{Fields: []pgproto3.FieldDescription{{Name: []byte("current_setting"), DataTypeOID: 25, DataTypeSize: -1, TypeModifier: -1}}},
 				&pgproto3.DataRow{Values: [][]byte{[]byte("on")}},
 				&pgproto3.CommandComplete{CommandTag: []byte("SELECT 1")},
 				&pgproto3.ReadyForQuery{TxStatus: 'I'},
-			},
-		},
-		{
-			Request: "DROP TABLE wr_t;",
-			Response: []pgproto3.BackendMessage{
+
 				&pgproto3.ParameterStatus{Name: gucName, Value: "off"},
 				&pgproto3.CommandComplete{CommandTag: []byte("DROP TABLE")},
 				&pgproto3.ReadyForQuery{TxStatus: 'I'},
