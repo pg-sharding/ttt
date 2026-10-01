@@ -23,3 +23,15 @@ jobs:
       run: docker build . --file docker/regress/Dockerfile --build-arg=PG_VERSION=${{ matrix.version }} --tag regress_test:1234
     - name: Run tests
       run: docker run regress_test:1234
+
+  regress_cassert:
+    name: Regression tests (cpg cassert build)
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build the Docker image
+      run: docker build . --file docker/regress/Dockerfile.cpg --tag regress_test_cassert:1234
+    - name: Run tests
+      run: docker run regress_test_cassert:1234

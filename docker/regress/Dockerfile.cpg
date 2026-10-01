@@ -1,0 +1,30 @@
+FROM ubuntu:noble
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    ca-certificates \
+    libssl-dev \
+    libreadline-dev \
+    zlib1g-dev \
+    flex \
+    bison \
+    && rm -rf /var/lib/apt/lists/*
+
+# Assert-enabled PostgreSQL build from pg-sharding/cpg
+RUN git clone --depth 1 --branch REL_18_STABLE https://github.com/pg-sharding/cpg.git /cpg
+RUN cd /cpg && ./configure --prefix=/usr/local/pgsql --enable-cassert --enable-debug \
+    --without-icu --without-mdblocales \
+    && make -j"$(nproc)" && make install
+
+COPY . /transaction_transients_trace
+WORKDIR /transaction_transients_trace
+
+RUN PATH=/usr/local/pgsql/bin:$PATH make USE_PGXS=1 && PATH=/usr/local/pgsql/bin:$PATH make USE_PGXS=1 install
+
+RUN useradd -ms /bin/bash postgres
+RUN chown -R postgres:postgres /transaction_transients_trace
+
+USER postgres
+
+ENTRYPOINT [ "/transaction_transients_trace/docker/regress/run_tests_cpg.sh" ]
