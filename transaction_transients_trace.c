@@ -15,7 +15,6 @@
 
 #include "access/genam.h"
 #include "access/table.h"
-#include "access/parallel.h"
 #include "access/relscan.h"
 #include "catalog/pg_class.h"
 #include "catalog/namespace.h"
