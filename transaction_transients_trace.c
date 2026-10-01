@@ -157,7 +157,7 @@ ttt_XactCallback(XactEvent event, void *arg)
 	Oid			tempNamespace;
 	Oid			tempTOASTNamespace;
 
-	if (event != XACT_EVENT_COMMIT || !ttt_pending_update)
+	if (event != XACT_EVENT_PRE_COMMIT || !ttt_pending_update)
 		return;
 
 	ttt_pending_update = false;
