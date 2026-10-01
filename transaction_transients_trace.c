@@ -18,13 +18,13 @@
 #include "access/relscan.h"
 #include "catalog/pg_class.h"
 #include "catalog/namespace.h"
-#include "executor/executor.h"
 #include "libpq/protocol.h"
 #include "libpq/pqformat.h"
 #include "miscadmin.h"
 #include "tcop/dest.h"
 #include "tcop/utility.h"
 #include "tcop/tcopprot.h"
+#include "utils/snapmgr.h"
 #include "utils/guc.h"
 #include "utils/guc_tables.h"
 #include "utils/fmgroids.h"
@@ -38,14 +38,11 @@ PG_MODULE_MAGIC_EXT(
 
 /* GUC variables */
 static bool ttt_session_owns_temp_rels = false;
-static bool ttt_session_owns_temp_rels_valid = false;
 
 /* Saved hook values */
-static ExecutorEnd_hook_type prev_ExecutorEnd = NULL;
 static ProcessUtility_hook_type prev_ProcessUtility = NULL;
 
 /* Forward declarations of hook functions */
-static void ttt_ExecutorEnd(QueryDesc *queryDesc);
 static void ttt_ProcessUtility(PlannedStmt *pstmt,
 							   const char *queryString,
 							   bool readOnlyTree,
@@ -109,30 +106,8 @@ tttRecalculate(Oid nsp)
 }
 
 /*
- * ExecutorEnd hook: simple proxy to the standard implementation.
- */
-static void
-ttt_ExecutorEnd(QueryDesc *queryDesc)
-{
-	/* ReportGUCOption() is not supported in parallel workers */
-	if (AmRegularBackendProcess() && !ttt_session_owns_temp_rels_valid)
-	{
-		Oid tempNamespace;
-		Oid tempTOASTNamespace;
-		GetTempNamespaceState(&tempNamespace, &tempTOASTNamespace);
-		tttRecalculate(tempNamespace);
-		ttt_session_owns_temp_rels_valid = true;
- 		ReportGUCOption();
-	}
-
-	if (prev_ExecutorEnd)
-		prev_ExecutorEnd(queryDesc);
-	else
-		standard_ExecutorEnd(queryDesc);
-}
-
-/*
- * ProcessUtility hook: simple proxy to the standard implementation.
+ * ProcessUtility hook: proxy to the standard implementation, then
+ * recalculate and report the GUC state.
  */
 static void
 ttt_ProcessUtility(PlannedStmt *pstmt,
@@ -144,15 +119,24 @@ ttt_ProcessUtility(PlannedStmt *pstmt,
 				  DestReceiver *dest,
 				  QueryCompletion *qc)
 {
-	/* Store invalidtion request */
-	ttt_session_owns_temp_rels_valid = false;
-
 	if (prev_ProcessUtility)
 		prev_ProcessUtility(pstmt, queryString, readOnlyTree,
 							context, params, queryEnv, dest, qc);
 	else
 		standard_ProcessUtility(pstmt, queryString, readOnlyTree,
 								context, params, queryEnv, dest, qc);
+
+	if (!AmRegularBackendProcess())
+		return;
+
+	Oid			tempNamespace;
+	Oid			tempTOASTNamespace;
+
+	/* The catalog snapshot may predate the utility statement */
+	InvalidateCatalogSnapshot();
+	GetTempNamespaceState(&tempNamespace, &tempTOASTNamespace);
+	tttRecalculate(tempNamespace);
+	ReportGUCOption();
 }
 
 /*
@@ -176,9 +160,6 @@ _PG_init(void)
 	MarkGUCPrefixReserved("ttt");
 
 	/* Install hooks. */
-	prev_ExecutorEnd = ExecutorEnd_hook;
-	ExecutorEnd_hook = ttt_ExecutorEnd;
-
 	prev_ProcessUtility = ProcessUtility_hook;
 	ProcessUtility_hook = ttt_ProcessUtility;
 }
