@@ -3,7 +3,7 @@
 MODULES = transaction_transients_trace
 PGFILEDESC = "transaction_transients_trace - trace transient relation lifecycle (skeleton)"
 
-REGRESS = transaction_transients_trace
+REGRESS = transaction_transients_trace parallel_worker
 
 ifdef USE_PGXS
 PG_CONFIG = pg_config

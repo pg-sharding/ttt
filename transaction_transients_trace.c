@@ -21,6 +21,7 @@
 #include "executor/executor.h"
 #include "libpq/protocol.h"
 #include "libpq/pqformat.h"
+#include "miscadmin.h"
 #include "tcop/dest.h"
 #include "tcop/utility.h"
 #include "tcop/tcopprot.h"
@@ -113,7 +114,8 @@ tttRecalculate(Oid nsp)
 static void
 ttt_ExecutorEnd(QueryDesc *queryDesc)
 {
-	if (!ttt_session_owns_temp_rels_valid)
+	/* ReportGUCOption() is not supported in parallel workers */
+	if (AmRegularBackendProcess() && !ttt_session_owns_temp_rels_valid)
 	{
 		Oid tempNamespace;
 		Oid tempTOASTNamespace;
