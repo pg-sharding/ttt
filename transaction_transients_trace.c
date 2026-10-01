@@ -21,7 +21,11 @@
 #include "catalog/pg_depend.h"
 #include "catalog/pg_namespace.h"
 #include "catalog/namespace.h"
+#if PG_VERSION_NUM >= 170000
 #include "libpq/protocol.h"
+#else
+#define PqMsg_ParameterStatus ('S')
+#endif
 #include "libpq/pqformat.h"
 #include "miscadmin.h"
 #include "tcop/dest.h"
@@ -30,6 +34,10 @@
 #include "utils/snapmgr.h"
 #include "utils/guc.h"
 #include "utils/guc_tables.h"
+
+#if PG_VERSION_NUM < 160000
+#define MarkGUCPrefixReserved(className) EmitWarningsOnPlaceholders(className)
+#endif
 #include "utils/fmgroids.h"
 
 #if PG_VERSION_NUM >= 180000
