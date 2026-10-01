@@ -52,4 +52,3 @@ SHOW ttt.owns_session_objs;
 
 -- Cleanup.
 DROP FUNCTION make_temp();
-
