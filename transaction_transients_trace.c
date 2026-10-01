@@ -21,7 +21,14 @@
 #include "catalog/pg_depend.h"
 #include "catalog/pg_namespace.h"
 #include "catalog/namespace.h"
+#if defined(__has_include)
+#if __has_include("libpq/protocol.h")
 #include "libpq/protocol.h"
+#endif
+#endif
+#ifndef PqMsg_ParameterStatus
+#define PqMsg_ParameterStatus ('S')
+#endif
 #include "libpq/pqformat.h"
 #include "miscadmin.h"
 #include "tcop/dest.h"
