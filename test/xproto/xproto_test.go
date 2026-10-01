@@ -16,11 +16,6 @@ type MessageGroup struct {
 	Response []pgproto3.BackendMessage
 }
 
-// rawWire rebuilds the full wire encoding of a received message.
-func rawWire(m RawMessage) []byte {
-	return appendMessage(nil, m.Type, m.Body)
-}
-
 func encodeExpects(msgs []pgproto3.BackendMessage) [][]byte {
 	out := make([][]byte, len(msgs))
 	for i, m := range msgs {
@@ -29,26 +24,9 @@ func encodeExpects(msgs []pgproto3.BackendMessage) [][]byte {
 	return out
 }
 
-func mustEncode(m pgproto3.BackendMessage) []byte {
-	b, err := m.Encode(nil)
-	if err != nil {
-		panic(err)
-	}
-	return b
-}
-
-func rawWires(msgs []RawMessage) [][]byte {
-	out := make([][]byte, len(msgs))
-	for i, m := range msgs {
-		out[i] = rawWire(m)
-	}
-	return out
-}
-
-// equal compares the expected message wire encoding byte-wise against
-// the received raw message.
-func equal(exp pgproto3.BackendMessage, raw RawMessage) bool {
-	return bytes.Equal(mustEncode(exp), rawWire(raw))
+// equal compares the expected message wire encoding byte-wise.
+func equal(exp pgproto3.BackendMessage, got []byte) bool {
+	return bytes.Equal(mustEncode(exp), got)
 }
 
 func runTestFlow(t *testing.T, c *Conn, tt []MessageGroup) {
@@ -56,14 +34,14 @@ func runTestFlow(t *testing.T, c *Conn, tt []MessageGroup) {
 	for _, grp := range tt {
 		msgs, err := c.SimpleQuery(grp.Request)
 		if err != nil {
-			t.Fatalf("%s: %v; messages: %x", grp.Request, err, rawWires(msgs))
+			t.Fatalf("%s: %v; messages: %x", grp.Request, err, msgs)
 		}
 		if len(msgs) != len(grp.Response) {
-			t.Fatalf("%s: expected %x, got %x", grp.Request, encodeExpects(grp.Response), rawWires(msgs))
+			t.Fatalf("%s: expected %x, got %x", grp.Request, encodeExpects(grp.Response), msgs)
 		}
 		for i, e := range grp.Response {
 			if !equal(e, msgs[i]) {
-				t.Fatalf("%s: message %d: expected %x, got %x", grp.Request, i, mustEncode(e), rawWire(msgs[i]))
+				t.Fatalf("%s: message %d: expected %x, got %x", grp.Request, i, mustEncode(e), msgs[i])
 			}
 		}
 	}
