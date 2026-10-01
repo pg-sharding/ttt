@@ -1,0 +1,9 @@
+LOAD 'transaction_transients_trace';
+
+-- Issue #8: ROLLBACK restores the dropped temp table, but the reported
+-- flag may not describe the state visible at ReadyForQuery
+CREATE TEMP TABLE t(a int);
+BEGIN;
+DROP TABLE t;
+ROLLBACK;
+SELECT current_setting('ttt.owns_session_objs'), to_regclass('pg_temp.t');
