@@ -30,6 +30,10 @@ jobs:
     name: regress-cassert
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        version: ['17', '18']
+
     steps:
 
       - name: Check out code
@@ -37,5 +41,5 @@ jobs:
 
       - name: Run tests
         run: |
-          docker build . --file docker/regress/Dockerfile.cpg --tag ttt-regress-cassert
-          docker run ttt-regress-cassert
+          docker build . --file docker/regress/Dockerfile.cpg --build-arg=PG_MAJOR=${{ matrix.version }} --tag ttt-regress-cassert:${{ matrix.version }}
+          docker run ttt-regress-cassert:${{ matrix.version }}

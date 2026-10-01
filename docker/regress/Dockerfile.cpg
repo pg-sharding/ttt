@@ -1,5 +1,7 @@
 FROM ubuntu:noble
 
+ARG PG_MAJOR=18
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     git \
@@ -12,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Assert-enabled PostgreSQL build from pg-sharding/cpg
-RUN git clone --depth 1 --branch REL_18_STABLE https://github.com/pg-sharding/cpg.git /cpg
+RUN git clone --depth 1 --branch REL_${PG_MAJOR}_STABLE https://github.com/pg-sharding/cpg.git /cpg
 RUN cd /cpg && ./configure --prefix=/usr/local/pgsql --enable-cassert --enable-debug \
     --without-icu --without-mdblocales \
     && make -j"$(nproc)" && make install
