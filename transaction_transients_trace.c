@@ -15,6 +15,7 @@
 
 #include "access/genam.h"
 #include "access/table.h"
+#include "access/xact.h"
 #include "access/relscan.h"
 #include "catalog/indexing.h"
 #include "catalog/pg_depend.h"
@@ -41,10 +42,17 @@ PG_MODULE_MAGIC_EXT(
 /* GUC variables */
 static bool ttt_session_owns_temp_rels = false;
 
+/* New value read during pre-commit, reported at commit */
+static bool ttt_new_owns_temp_rels = false;
+
+/* Pending recompute signal, set by the ProcessUtility hook */
+static bool ttt_pending_update = false;
+
 /* Saved hook values */
 static ProcessUtility_hook_type prev_ProcessUtility = NULL;
 
 /* Forward declarations of hook functions */
+static void ttt_XactCallback(XactEvent event, void *arg);
 static void ttt_ProcessUtility(PlannedStmt *pstmt,
 							   const char *queryString,
 							   bool readOnlyTree,
@@ -76,20 +84,16 @@ ReportGUCOption(void)
 	pq_endmessage(&msgbuf);
 }
 
-static void
+static bool
 tttRecalculate(Oid nsp)
 {
 	Relation depRelation;
 	ScanKeyData skey[2];
 	SysScanDesc scan;
-	HeapTuple tuple;
-
+	bool		owns;
 	/* No temp namespace: the session owns no session objects */
 	if (!OidIsValid(nsp))
-	{
-		ttt_session_owns_temp_rels = false;
-		return;
-	}
+		return false;
 
 	/* Look for any object depending on the temp schema */
 	ScanKeyInit(&skey[0],
@@ -105,17 +109,12 @@ tttRecalculate(Oid nsp)
 	scan = systable_beginscan(depRelation, DependReferenceIndexId, true,
 							  NULL, 2, skey);
 
-	if (HeapTupleIsValid(tuple = systable_getnext(scan)))
-	{
-		ttt_session_owns_temp_rels = true;
-	}
-	else
-	{
-		ttt_session_owns_temp_rels = false;
-	}
+	owns = HeapTupleIsValid(systable_getnext(scan));
 
 	systable_endscan(scan);
 	table_close(depRelation, AccessShareLock);
+
+	return owns;
 }
 
 /*
@@ -132,8 +131,8 @@ ttt_ProcessUtility(PlannedStmt *pstmt,
 				  DestReceiver *dest,
 				  QueryCompletion *qc)
 {
-	Oid			tempNamespace;
-	Oid			tempTOASTNamespace;
+	if (AmRegularBackendProcess())
+		ttt_pending_update = true;
 
 	if (prev_ProcessUtility)
 		prev_ProcessUtility(pstmt, queryString, readOnlyTree,
@@ -141,15 +140,49 @@ ttt_ProcessUtility(PlannedStmt *pstmt,
 	else
 		standard_ProcessUtility(pstmt, queryString, readOnlyTree,
 								context, params, queryEnv, dest, qc);
+}
 
-	if (!AmRegularBackendProcess())
-		return;
+/*
+ * Transaction callback: recalculate and report pending updates at commit.
+ */
+static void
+ttt_XactCallback(XactEvent event, void *arg)
+{
+	Oid			tempNamespace;
+	Oid			tempTOASTNamespace;
 
-	/* The catalog snapshot may predate the utility statement */
-	InvalidateCatalogSnapshot();
-	GetTempNamespaceState(&tempNamespace, &tempTOASTNamespace);
-	tttRecalculate(tempNamespace);
-	ReportGUCOption();
+	switch (event)
+	{
+		case XACT_EVENT_PRE_COMMIT:
+			if (!ttt_pending_update)
+				break;
+
+			/* The catalog snapshot may predate the utility statement */
+			InvalidateCatalogSnapshot();
+			GetTempNamespaceState(&tempNamespace, &tempTOASTNamespace);
+			ttt_new_owns_temp_rels = tttRecalculate(tempNamespace);
+			break;
+
+		case XACT_EVENT_COMMIT:
+			if (!ttt_pending_update)
+				break;
+			ttt_pending_update = false;
+
+			if (ttt_new_owns_temp_rels != ttt_session_owns_temp_rels)
+			{
+				ttt_session_owns_temp_rels = ttt_new_owns_temp_rels;
+				ReportGUCOption();
+			}
+			break;
+
+		case XACT_EVENT_ABORT:
+			/* Forget the value read during pre-commit */
+			ttt_pending_update = false;
+			break;
+
+		default:
+			break;
+	}
 }
 
 /*
@@ -171,6 +204,8 @@ _PG_init(void)
 							 NULL);
 
 	MarkGUCPrefixReserved("ttt");
+
+	RegisterXactCallback(ttt_XactCallback, NULL);
 
 	/* Install hooks. */
 	prev_ProcessUtility = ProcessUtility_hook;
