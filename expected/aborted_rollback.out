@@ -12,3 +12,30 @@ SELECT current_setting('ttt.owns_session_objs'), to_regclass('pg_temp.t');
  on              | t
 (1 row)
 
+-- Clean rollback restores the temp table: the GUC must still say on
+CREATE TEMP TABLE rt(a int);
+BEGIN;
+DROP TABLE rt;
+ROLLBACK;
+SELECT current_setting('ttt.owns_session_objs'), to_regclass('pg_temp.rt');
+ current_setting | to_regclass 
+-----------------+-------------
+ on              | rt
+(1 row)
+
+DROP TABLE rt;
+SELECT current_setting('ttt.owns_session_objs'), to_regclass('pg_temp.t'),
+       to_regclass('pg_temp.rt');
+ current_setting | to_regclass | to_regclass 
+-----------------+-------------+-------------
+ on              | t           | 
+(1 row)
+
+DROP TABLE t;
+SELECT current_setting('ttt.owns_session_objs'), to_regclass('pg_temp.t'),
+       to_regclass('pg_temp.rt');
+ current_setting | to_regclass | to_regclass 
+-----------------+-------------+-------------
+ off             |             | 
+(1 row)
+
