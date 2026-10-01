@@ -26,6 +26,7 @@ tests += {
       'parallel_worker',
       'aborted_rollback',
       'rollback_restore',
+      'partition_drops',
     ],
   },
 }
