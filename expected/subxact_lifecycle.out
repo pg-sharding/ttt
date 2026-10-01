@@ -1,0 +1,97 @@
+LOAD 'transaction_transients_trace';
+-- savepoint ROLLBACK TO undoes the DROP
+CREATE TEMP TABLE sp(a int);
+BEGIN;
+SAVEPOINT s;
+DROP TABLE sp;
+ROLLBACK TO SAVEPOINT s;
+COMMIT;
+SELECT current_setting('ttt.owns_session_objs'), to_regclass('pg_temp.sp');
+ current_setting | to_regclass 
+-----------------+-------------
+ on              | sp
+(1 row)
+
+-- savepoint RELEASE keeps work done inside
+BEGIN;
+SAVEPOINT s;
+CREATE TEMP TABLE sp2(a int);
+RELEASE SAVEPOINT s;
+COMMIT;
+SELECT current_setting('ttt.owns_session_objs'), to_regclass('pg_temp.sp2');
+ current_setting | to_regclass 
+-----------------+-------------
+ on              | sp2
+(1 row)
+
+DROP TABLE sp;
+DROP TABLE sp2;
+-- PL/pgSQL exception block: subtransaction abort undoes the DROP
+CREATE TEMP TABLE exc(a int);
+CREATE FUNCTION exc_drop_then_fail() RETURNS void AS $$
+BEGIN
+  DROP TABLE exc;
+  PERFORM 1/0;
+EXCEPTION WHEN OTHERS THEN
+  NULL;
+END $$ LANGUAGE plpgsql;
+SELECT exc_drop_then_fail();
+ exc_drop_then_fail 
+--------------------
+ 
+(1 row)
+
+SELECT current_setting('ttt.owns_session_objs'), to_regclass('pg_temp.exc');
+ current_setting | to_regclass 
+-----------------+-------------
+ on              | exc
+(1 row)
+
+DROP TABLE exc;
+-- PL/pgSQL exception block: subtransaction abort undoes the CREATE
+CREATE FUNCTION exc_create_then_fail() RETURNS void AS $$
+BEGIN
+  CREATE TEMP TABLE exc_rolled(a int);
+  PERFORM 1/0;
+EXCEPTION WHEN OTHERS THEN
+  NULL;
+END $$ LANGUAGE plpgsql;
+SELECT exc_create_then_fail();
+ exc_create_then_fail 
+----------------------
+ 
+(1 row)
+
+SELECT current_setting('ttt.owns_session_objs'), to_regclass('pg_temp.exc_rolled');
+ current_setting | to_regclass 
+-----------------+-------------
+ off             | 
+(1 row)
+
+-- a utility failing mid-execution must not leave a stale report
+CREATE TEMP TABLE ctas AS SELECT 1/0;
+ERROR:  division by zero
+SELECT current_setting('ttt.owns_session_objs'), to_regclass('pg_temp.ctas');
+ current_setting | to_regclass 
+-----------------+-------------
+ off             | 
+(1 row)
+
+-- a failing duplicate CREATE aborts its implicit transaction; the
+-- committed tables remain, so the flag must stay on
+CREATE TEMP TABLE ok1(a int); CREATE TEMP TABLE bad(a int); CREATE TEMP TABLE bad(a int);
+ERROR:  relation "bad" already exists
+SELECT current_setting('ttt.owns_session_objs'), to_regclass('pg_temp.ok1'), to_regclass('pg_temp.bad');
+ current_setting | to_regclass | to_regclass 
+-----------------+-------------+-------------
+ on              | ok1         | bad
+(1 row)
+
+DROP TABLE ok1;
+DROP TABLE bad;
+SELECT current_setting('ttt.owns_session_objs');
+ current_setting 
+-----------------
+ off
+(1 row)
+
