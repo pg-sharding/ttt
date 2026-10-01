@@ -132,6 +132,9 @@ ttt_ProcessUtility(PlannedStmt *pstmt,
 				  DestReceiver *dest,
 				  QueryCompletion *qc)
 {
+	Oid			tempNamespace;
+	Oid			tempTOASTNamespace;
+
 	if (prev_ProcessUtility)
 		prev_ProcessUtility(pstmt, queryString, readOnlyTree,
 							context, params, queryEnv, dest, qc);
@@ -141,9 +144,6 @@ ttt_ProcessUtility(PlannedStmt *pstmt,
 
 	if (!AmRegularBackendProcess())
 		return;
-
-	Oid			tempNamespace;
-	Oid			tempTOASTNamespace;
 
 	/* The catalog snapshot may predate the utility statement */
 	InvalidateCatalogSnapshot();
