@@ -32,10 +32,14 @@
 #include "utils/guc_tables.h"
 #include "utils/fmgroids.h"
 
+#if PG_VERSION_NUM >= 180000
 PG_MODULE_MAGIC_EXT(
 					.name = "transaction_transients_trace",
 					.version = PG_VERSION
 );
+#else
+PG_MODULE_MAGIC;
+#endif
 
 #define TTT_GUC_NAME "ttt.owns_session_objs"
 

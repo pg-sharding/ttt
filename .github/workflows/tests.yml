@@ -1,37 +1,45 @@
-name: Regression tests
+name: tests
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ master ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ master ]
 
 jobs:
 
   regress:
-    name: Regression tests
+    name: regress
+    runs-on: ubuntu-latest
 
     strategy:
       matrix:
-        version: ['18']
-
-    runs-on: ubuntu-latest
+        version: ['17', '18']
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Build the Docker image
-      run: docker build . --file docker/regress/Dockerfile --build-arg=PG_VERSION=${{ matrix.version }} --tag regress_test:1234
-    - name: Run tests
-      run: docker run regress_test:1234
 
-  regress_cassert:
-    name: Regression tests (cpg cassert build)
+      - name: Check out code
+        uses: actions/checkout@v7
 
+      - name: Run tests
+        run: |
+          docker build . --file docker/regress/Dockerfile --build-arg=PG_VERSION=${{ matrix.version }} --tag ttt-regress:${{ matrix.version }}
+          docker run ttt-regress:${{ matrix.version }}
+
+  regress-cassert:
+    name: regress-cassert
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        version: ['17', '18']
+
     steps:
-    - uses: actions/checkout@v4
-    - name: Build the Docker image
-      run: docker build . --file docker/regress/Dockerfile.cpg --tag regress_test_cassert:1234
-    - name: Run tests
-      run: docker run regress_test_cassert:1234
+
+      - name: Check out code
+        uses: actions/checkout@v7
+
+      - name: Run tests
+        run: |
+          docker build . --file docker/regress/Dockerfile.cpg --build-arg=PG_MAJOR=${{ matrix.version }} --tag ttt-regress-cassert:${{ matrix.version }}
+          docker run ttt-regress-cassert:${{ matrix.version }}
