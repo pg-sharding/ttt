@@ -31,5 +31,14 @@ SHOW ttt.owns_session_objs;
 DROP TABLE z3;
 SHOW ttt.owns_session_objs;
 
+-- Functions in pg_temp are session objects too.
+CREATE FUNCTION pg_temp.f() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;
+SELECT 1;
+SHOW ttt.owns_session_objs;
+
+DROP FUNCTION pg_temp.f();
+SELECT 1;
+SHOW ttt.owns_session_objs;
+
 -- Cleanup.
 DROP FUNCTION make_temp();
