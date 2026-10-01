@@ -11,12 +11,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zlib1g-dev \
     flex \
     bison \
+    bc \
     && rm -rf /var/lib/apt/lists/*
 
-# Assert-enabled PostgreSQL build from pg-sharding/cpg
-RUN git clone --depth 1 --branch REL_${PG_MAJOR}_STABLE https://github.com/pg-sharding/cpg.git /cpg
-RUN cd /cpg && ./configure --prefix=/usr/local/pgsql --enable-cassert --enable-debug \
-    --without-icu --without-mdblocales \
+# Assert-enabled PostgreSQL build from upstream REL_${PG_MAJOR}_STABLE
+RUN git clone --depth 1 --branch REL_${PG_MAJOR}_STABLE https://github.com/postgres/postgres.git /pg
+RUN cd /pg && CONF="--without-icu"; \
+    if [ "$(echo "$PG_MAJOR >= 18" | bc)" = 1 ]; then CONF="$CONF --without-mdblocales"; fi; \
+    if [ "$(echo "$PG_MAJOR <= 15" | bc)" = 1 ]; then CONF=""; fi; \
+    ./configure --prefix=/usr/local/pgsql --enable-cassert --enable-debug $CONF \
     && make -j"$(nproc)" && make install
 
 COPY . /transaction_transients_trace
