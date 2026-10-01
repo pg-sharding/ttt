@@ -24,6 +24,7 @@ tests += {
     'sql': [
       'transaction_transients_trace',
       'parallel_worker',
+      'aborted_rollback',
     ],
   },
 }
