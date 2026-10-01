@@ -47,6 +47,14 @@ func (m RawMessage) ErrorFields() map[byte]string {
 	return fields
 }
 
+// appendMessage appends a full wire message (type byte, int32 big-endian
+// body length + 4, body) to dst.
+func appendMessage(dst []byte, msgType byte, body []byte) []byte {
+	dst = append(dst, msgType)
+	dst = binary.BigEndian.AppendUint32(dst, uint32(len(body)+4))
+	return append(dst, body...)
+}
+
 type Conn struct {
 	conn  net.Conn
 	trace bool
@@ -138,11 +146,7 @@ func (c *Conn) ReadMessage() (RawMessage, error) {
 
 // backend messages until (and including) the final ReadyForQuery.
 func (c *Conn) SimpleQuery(query string) ([]RawMessage, error) {
-	payload := append([]byte(query), 0)
-	msg := make([]byte, 5+len(payload))
-	msg[0] = 'Q'
-	binary.BigEndian.PutUint32(msg[1:5], uint32(4+len(payload)))
-	copy(msg[5:], payload)
+	msg := appendMessage(nil, 'Q', append([]byte(query), 0))
 	if _, err := c.conn.Write(msg); err != nil {
 		return nil, err
 	}
