@@ -9,14 +9,15 @@ ROLLBACK TO SAVEPOINT s;
 COMMIT;
 SELECT current_setting('ttt.owns_session_objs'), to_regclass('pg_temp.sp');
 
--- savepoint RELEASE keeps work done inside
+-- savepoint RELEASE keeps work done inside (the first temp table is
+-- created in a subtransaction and survives the outer commit)
+DROP TABLE sp;
 BEGIN;
 SAVEPOINT s;
 CREATE TEMP TABLE sp2(a int);
 RELEASE SAVEPOINT s;
 COMMIT;
 SELECT current_setting('ttt.owns_session_objs'), to_regclass('pg_temp.sp2');
-DROP TABLE sp;
 DROP TABLE sp2;
 
 -- PL/pgSQL exception block: subtransaction abort undoes the DROP
@@ -44,7 +45,7 @@ SELECT exc_create_then_fail();
 SELECT current_setting('ttt.owns_session_objs'), to_regclass('pg_temp.exc_rolled');
 
 -- a utility failing mid-execution must not leave a stale report
-CREATE TEMP TABLE ctas AS SELECT 1/0;
+CREATE TEMP TABLE ctas AS SELECT 1 / g AS a FROM generate_series(0, 0) AS g;
 SELECT current_setting('ttt.owns_session_objs'), to_regclass('pg_temp.ctas');
 
 -- a failing duplicate CREATE aborts its implicit transaction; the
