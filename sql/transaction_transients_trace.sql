@@ -8,8 +8,8 @@ LOAD 'transaction_transients_trace';
 -- No temp relations yet: GUC should be off.
 SHOW ttt.owns_session_objs;
 
--- Create a temp table.  The ProcessUtility hook recalculates and reports
--- the GUC right away.
+-- Create a temp table.  The GUC is recalculated and reported at the end
+-- of the utility statement.
 CREATE TEMP TABLE z2();
 SHOW ttt.owns_session_objs;
 
@@ -38,6 +38,13 @@ SHOW ttt.owns_session_objs;
 
 DROP FUNCTION pg_temp.f();
 SELECT 1;
+SHOW ttt.owns_session_objs;
+
+-- A rolled back transaction must not leave the GUC on.
+BEGIN;
+CREATE TEMP TABLE z5();
+SHOW ttt.owns_session_objs;
+ROLLBACK;
 SHOW ttt.owns_session_objs;
 
 -- Cleanup.

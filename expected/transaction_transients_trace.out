@@ -10,8 +10,8 @@ SHOW ttt.owns_session_objs;
  off
 (1 row)
 
--- Create a temp table.  The ProcessUtility hook recalculates and reports
--- the GUC right away.
+-- Create a temp table.  The GUC is recalculated and reported at the end
+-- of the utility statement.
 CREATE TEMP TABLE z2();
 SHOW ttt.owns_session_objs;
  ttt.owns_session_objs 
@@ -74,6 +74,22 @@ SELECT 1;
         1
 (1 row)
 
+SHOW ttt.owns_session_objs;
+ ttt.owns_session_objs 
+-----------------------
+ off
+(1 row)
+
+-- A rolled back transaction must not leave the GUC on.
+BEGIN;
+CREATE TEMP TABLE z5();
+SHOW ttt.owns_session_objs;
+ ttt.owns_session_objs 
+-----------------------
+ off
+(1 row)
+
+ROLLBACK;
 SHOW ttt.owns_session_objs;
  ttt.owns_session_objs 
 -----------------------

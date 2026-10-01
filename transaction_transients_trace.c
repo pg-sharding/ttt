@@ -15,6 +15,7 @@
 
 #include "access/genam.h"
 #include "access/table.h"
+#include "access/xact.h"
 #include "access/relscan.h"
 #include "catalog/indexing.h"
 #include "catalog/pg_depend.h"
@@ -41,10 +42,14 @@ PG_MODULE_MAGIC_EXT(
 /* GUC variables */
 static bool ttt_session_owns_temp_rels = false;
 
+/* Pending recompute signal, set by the ProcessUtility hook */
+static bool ttt_pending_update = false;
+
 /* Saved hook values */
 static ProcessUtility_hook_type prev_ProcessUtility = NULL;
 
 /* Forward declarations of hook functions */
+static void ttt_XactCallback(XactEvent event, void *arg);
 static void ttt_ProcessUtility(PlannedStmt *pstmt,
 							   const char *queryString,
 							   bool readOnlyTree,
@@ -132,8 +137,8 @@ ttt_ProcessUtility(PlannedStmt *pstmt,
 				  DestReceiver *dest,
 				  QueryCompletion *qc)
 {
-	Oid			tempNamespace;
-	Oid			tempTOASTNamespace;
+	if (AmRegularBackendProcess())
+		ttt_pending_update = true;
 
 	if (prev_ProcessUtility)
 		prev_ProcessUtility(pstmt, queryString, readOnlyTree,
@@ -141,9 +146,21 @@ ttt_ProcessUtility(PlannedStmt *pstmt,
 	else
 		standard_ProcessUtility(pstmt, queryString, readOnlyTree,
 								context, params, queryEnv, dest, qc);
+}
 
-	if (!AmRegularBackendProcess())
+/*
+ * Transaction callback: recalculate and report pending updates at commit.
+ */
+static void
+ttt_XactCallback(XactEvent event, void *arg)
+{
+	Oid			tempNamespace;
+	Oid			tempTOASTNamespace;
+
+	if (event != XACT_EVENT_COMMIT || !ttt_pending_update)
 		return;
+
+	ttt_pending_update = false;
 
 	/* The catalog snapshot may predate the utility statement */
 	InvalidateCatalogSnapshot();
@@ -171,6 +188,8 @@ _PG_init(void)
 							 NULL);
 
 	MarkGUCPrefixReserved("ttt");
+
+	RegisterXactCallback(ttt_XactCallback, NULL);
 
 	/* Install hooks. */
 	prev_ProcessUtility = ProcessUtility_hook;
