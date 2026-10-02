@@ -143,3 +143,60 @@ func TestXproto(t *testing.T) {
 
 	runTestFlow(t, conn, tt)
 }
+
+func TestXprotoSavepoint(t *testing.T) {
+	conn := connectOrSkip(t)
+
+	tt := []MessageGroup{
+		{
+			Request: []string{
+				"LOAD 'transaction_transients_trace';",
+				"CREATE TEMP TABLE sp(a int);",
+				"BEGIN;",
+				"SAVEPOINT s;",
+				"DROP TABLE sp;",
+				"ROLLBACK TO SAVEPOINT s;",
+				"COMMIT;",
+				"SELECT current_setting('ttt.owns_session_objs'), to_regclass('pg_temp.sp');",
+				"DROP TABLE sp;",
+			},
+			Response: []pgproto3.BackendMessage{
+				&pgproto3.CommandComplete{CommandTag: []byte("LOAD")},
+				&pgproto3.ReadyForQuery{TxStatus: 'I'},
+
+				&pgproto3.ParameterStatus{Name: gucName, Value: "on"},
+				&pgproto3.CommandComplete{CommandTag: []byte("CREATE TABLE")},
+				&pgproto3.ReadyForQuery{TxStatus: 'I'},
+
+				&pgproto3.CommandComplete{CommandTag: []byte("BEGIN")},
+				&pgproto3.ReadyForQuery{TxStatus: 'T'},
+
+				&pgproto3.CommandComplete{CommandTag: []byte("SAVEPOINT")},
+				&pgproto3.ReadyForQuery{TxStatus: 'T'},
+
+				&pgproto3.CommandComplete{CommandTag: []byte("DROP TABLE")},
+				&pgproto3.ReadyForQuery{TxStatus: 'T'},
+
+				&pgproto3.CommandComplete{CommandTag: []byte("ROLLBACK")},
+				&pgproto3.ReadyForQuery{TxStatus: 'T'},
+
+				&pgproto3.CommandComplete{CommandTag: []byte("COMMIT")},
+				&pgproto3.ReadyForQuery{TxStatus: 'I'},
+
+				&pgproto3.RowDescription{Fields: []pgproto3.FieldDescription{
+					{Name: []byte("current_setting"), DataTypeOID: 25, DataTypeSize: -1, TypeModifier: -1},
+					{Name: []byte("to_regclass"), DataTypeOID: 2205, DataTypeSize: 4, TypeModifier: -1},
+				}},
+				&pgproto3.DataRow{Values: [][]byte{[]byte("on"), []byte("sp")}},
+				&pgproto3.CommandComplete{CommandTag: []byte("SELECT 1")},
+				&pgproto3.ReadyForQuery{TxStatus: 'I'},
+
+				&pgproto3.ParameterStatus{Name: gucName, Value: "off"},
+				&pgproto3.CommandComplete{CommandTag: []byte("DROP TABLE")},
+				&pgproto3.ReadyForQuery{TxStatus: 'I'},
+			},
+		},
+	}
+
+	runTestFlow(t, conn, tt)
+}
