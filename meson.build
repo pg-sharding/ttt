@@ -25,6 +25,7 @@ tests += {
       'transaction_transients_trace',
       'parallel_worker',
       'aborted_rollback',
+      'subxact_lifecycle',
       'rollback_restore',
       'partition_drops',
     ],

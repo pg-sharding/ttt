@@ -3,7 +3,7 @@
 MODULES = transaction_transients_trace
 PGFILEDESC = "transaction_transients_trace - trace transient relation lifecycle (skeleton)"
 
-REGRESS = transaction_transients_trace parallel_worker aborted_rollback rollback_restore partition_drops
+REGRESS = transaction_transients_trace parallel_worker aborted_rollback subxact_lifecycle rollback_restore partition_drops
 
 ifdef USE_PGXS
 PG_CONFIG = pg_config
