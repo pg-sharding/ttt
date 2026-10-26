@@ -28,6 +28,7 @@ tests += {
       'subxact_lifecycle',
       'rollback_restore',
       'partition_drops',
+      'last_write_lsn',
     ],
   },
 }

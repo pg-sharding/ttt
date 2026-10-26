@@ -1,0 +1,68 @@
+LOAD 'transaction_transients_trace';
+SELECT current_setting('ttt.last_write_lsn') = '0/0' AS initially_unset;
+ initially_unset 
+-----------------
+ t
+(1 row)
+
+CREATE TABLE lsn_test (i int);
+SELECT current_setting('ttt.last_write_lsn')::pg_lsn > '0/0' AS ddl_reported;
+ ddl_reported 
+--------------
+ t
+(1 row)
+
+SELECT current_setting('ttt.last_write_lsn') AS before_write \gset
+BEGIN;
+INSERT INTO lsn_test VALUES (1);
+SELECT current_setting('ttt.last_write_lsn') = :'before_write' AS unchanged_before_commit;
+ unchanged_before_commit 
+-------------------------
+ t
+(1 row)
+
+COMMIT;
+SELECT current_setting('ttt.last_write_lsn')::pg_lsn > :'before_write'::pg_lsn AS commit_reported;
+ commit_reported 
+-----------------
+ t
+(1 row)
+
+SELECT current_setting('ttt.last_write_lsn') AS before_abort \gset
+BEGIN;
+INSERT INTO lsn_test VALUES (2);
+ROLLBACK;
+SELECT current_setting('ttt.last_write_lsn') = :'before_abort' AS unchanged_after_abort;
+ unchanged_after_abort 
+-----------------------
+ t
+(1 row)
+
+SELECT 1;
+ ?column? 
+----------
+        1
+(1 row)
+
+SELECT current_setting('ttt.last_write_lsn') = :'before_abort' AS unchanged_after_read;
+ unchanged_after_read 
+----------------------
+ t
+(1 row)
+
+RESET ALL;
+SELECT current_setting('ttt.last_write_lsn') = :'before_abort' AS survives_reset;
+ survives_reset 
+----------------
+ t
+(1 row)
+
+SET ttt.last_write_lsn = '1/1';
+ERROR:  parameter "ttt.last_write_lsn" cannot be changed
+SELECT current_setting('ttt.last_write_lsn') = :'before_abort' AS cannot_be_overridden;
+ cannot_be_overridden 
+----------------------
+ t
+(1 row)
+
+DROP TABLE lsn_test;
