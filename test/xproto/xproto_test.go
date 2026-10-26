@@ -31,6 +31,7 @@ func equal(exp pgproto3.BackendMessage, got []byte) bool {
 
 func runTestFlow(t *testing.T, c *Conn, tt []MessageGroup) {
 	t.Helper()
+	var previousLSN uint64
 	for _, grp := range tt {
 		msgs, err := c.RunQueries(grp.Request)
 		if err != nil {
@@ -40,6 +41,18 @@ func runTestFlow(t *testing.T, c *Conn, tt []MessageGroup) {
 			t.Fatalf("%s: expected %x, got %x", grp.Request, encodeExpects(grp.Response), msgs)
 		}
 		for i, e := range grp.Response {
+			// LSN positions vary across runs; "*" requires an increasing LSN.
+			if p, ok := e.(*pgproto3.ParameterStatus); ok && p.Name == lastWriteLSNGUCName && p.Value == "*" {
+				lsn, ok := writeLSN(t, msgs[i])
+				if !ok {
+					t.Fatalf("%s: message %d: expected LSN feedback, got %x", grp.Request, i, msgs[i])
+				}
+				if lsn <= previousLSN {
+					t.Fatalf("%s: message %d: LSN %X did not advance from %X", grp.Request, i, lsn, previousLSN)
+				}
+				previousLSN = lsn
+				continue
+			}
 			if !equal(e, msgs[i]) {
 				t.Fatalf("%s: message %d: expected %x, got %x", grp.Request, i, mustEncode(e), msgs[i])
 			}
@@ -114,13 +127,16 @@ func TestXproto(t *testing.T) {
 				&pgproto3.CommandComplete{CommandTag: []byte("COMMIT")},
 				&pgproto3.ReadyForQuery{TxStatus: 'I'},
 
+				&pgproto3.ParameterStatus{Name: lastWriteLSNGUCName, Value: "*"},
 				&pgproto3.ParameterStatus{Name: gucName, Value: "on"},
 				&pgproto3.CommandComplete{CommandTag: []byte("CREATE TABLE")},
 				&pgproto3.ReadyForQuery{TxStatus: 'I'},
 
+				&pgproto3.ParameterStatus{Name: lastWriteLSNGUCName, Value: "*"},
 				&pgproto3.CommandComplete{CommandTag: []byte("CREATE TABLE")},
 				&pgproto3.ReadyForQuery{TxStatus: 'I'},
 
+				&pgproto3.ParameterStatus{Name: lastWriteLSNGUCName, Value: "*"},
 				&pgproto3.CommandComplete{CommandTag: []byte("DROP TABLE")},
 				&pgproto3.ReadyForQuery{TxStatus: 'I'},
 
@@ -134,6 +150,7 @@ func TestXproto(t *testing.T) {
 				&pgproto3.CommandComplete{CommandTag: []byte("SELECT 1")},
 				&pgproto3.ReadyForQuery{TxStatus: 'I'},
 
+				&pgproto3.ParameterStatus{Name: lastWriteLSNGUCName, Value: "*"},
 				&pgproto3.ParameterStatus{Name: gucName, Value: "off"},
 				&pgproto3.CommandComplete{CommandTag: []byte("DROP TABLE")},
 				&pgproto3.ReadyForQuery{TxStatus: 'I'},
@@ -164,6 +181,7 @@ func TestXprotoSavepoint(t *testing.T) {
 				&pgproto3.CommandComplete{CommandTag: []byte("LOAD")},
 				&pgproto3.ReadyForQuery{TxStatus: 'I'},
 
+				&pgproto3.ParameterStatus{Name: lastWriteLSNGUCName, Value: "*"},
 				&pgproto3.ParameterStatus{Name: gucName, Value: "on"},
 				&pgproto3.CommandComplete{CommandTag: []byte("CREATE TABLE")},
 				&pgproto3.ReadyForQuery{TxStatus: 'I'},
@@ -180,6 +198,7 @@ func TestXprotoSavepoint(t *testing.T) {
 				&pgproto3.CommandComplete{CommandTag: []byte("ROLLBACK")},
 				&pgproto3.ReadyForQuery{TxStatus: 'T'},
 
+				&pgproto3.ParameterStatus{Name: lastWriteLSNGUCName, Value: "*"},
 				&pgproto3.CommandComplete{CommandTag: []byte("COMMIT")},
 				&pgproto3.ReadyForQuery{TxStatus: 'I'},
 
@@ -191,6 +210,7 @@ func TestXprotoSavepoint(t *testing.T) {
 				&pgproto3.CommandComplete{CommandTag: []byte("SELECT 1")},
 				&pgproto3.ReadyForQuery{TxStatus: 'I'},
 
+				&pgproto3.ParameterStatus{Name: lastWriteLSNGUCName, Value: "*"},
 				&pgproto3.ParameterStatus{Name: gucName, Value: "off"},
 				&pgproto3.CommandComplete{CommandTag: []byte("DROP TABLE")},
 				&pgproto3.ReadyForQuery{TxStatus: 'I'},

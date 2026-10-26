@@ -17,6 +17,10 @@
 #include "access/table.h"
 #include "access/xact.h"
 #include "access/relscan.h"
+#include "access/xlog.h"
+#if PG_VERSION_NUM >= 150000
+#include "access/xlogrecovery.h"
+#endif
 #include "catalog/indexing.h"
 #include "catalog/pg_depend.h"
 #include "catalog/pg_namespace.h"
@@ -50,9 +54,12 @@ PG_MODULE_MAGIC;
 #endif
 
 #define TTT_GUC_NAME "ttt.owns_session_objs"
+#define TTT_LSN_GUC_NAME "ttt.last_write_lsn"
 
 /* GUC variables */
 static bool ttt_session_owns_temp_rels = false;
+static char *ttt_last_write_lsn = NULL;
+static bool ttt_pending_write = false;
 
 /* New value read during pre-commit, reported at commit */
 static bool ttt_new_owns_temp_rels = false;
@@ -81,9 +88,8 @@ static void ttt_ProcessUtility(PlannedStmt *pstmt,
  * transmitted.
  */
 static void
-ReportGUCOption(void)
+ReportGUCOption(const char *name, const char *val)
 {
-	char	   *val = ttt_session_owns_temp_rels ? "on" : "off";
 	StringInfoData msgbuf;
 
 	/* Don't send anything if we're not connected to a frontend. */
@@ -91,7 +97,7 @@ ReportGUCOption(void)
 		return;
 
 	pq_beginmessage(&msgbuf, PqMsg_ParameterStatus);
-	pq_sendstring(&msgbuf, TTT_GUC_NAME);
+	pq_sendstring(&msgbuf, name);
 	pq_sendstring(&msgbuf, val);
 	pq_endmessage(&msgbuf);
 }
@@ -166,6 +172,9 @@ ttt_XactCallback(XactEvent event, void *arg)
 	switch (event)
 	{
 		case XACT_EVENT_PRE_COMMIT:
+			/* Remember WAL activity before RecordTransactionCommit resets it. */
+			ttt_pending_write = AmRegularBackendProcess() &&
+				!RecoveryInProgress() && !XLogRecPtrIsInvalid(XactLastRecEnd);
 			if (!ttt_pending_update)
 				break;
 
@@ -176,6 +185,19 @@ ttt_XactCallback(XactEvent event, void *arg)
 			break;
 
 		case XACT_EVENT_COMMIT:
+			if (ttt_pending_write)
+			{
+				char		lsn[32];
+				XLogRecPtr	end = GetXLogInsertRecPtr();
+
+				/* The commit record is now included, even with async commit. */
+				snprintf(lsn, sizeof(lsn), "%X/%X",
+						 (uint32) (end >> 32), (uint32) end);
+				SetConfigOption(TTT_LSN_GUC_NAME, lsn,
+								PGC_INTERNAL, PGC_S_OVERRIDE);
+				ReportGUCOption(TTT_LSN_GUC_NAME, ttt_last_write_lsn);
+			}
+			ttt_pending_write = false;
 			if (!ttt_pending_update)
 				break;
 			ttt_pending_update = false;
@@ -183,13 +205,15 @@ ttt_XactCallback(XactEvent event, void *arg)
 			if (ttt_new_owns_temp_rels != ttt_session_owns_temp_rels)
 			{
 				ttt_session_owns_temp_rels = ttt_new_owns_temp_rels;
-				ReportGUCOption();
+				ReportGUCOption(TTT_GUC_NAME,
+								ttt_session_owns_temp_rels ? "on" : "off");
 			}
 			break;
 
 		case XACT_EVENT_ABORT:
 			/* Forget the value read during pre-commit */
 			ttt_pending_update = false;
+			ttt_pending_write = false;
 			break;
 
 		default:
@@ -214,6 +238,14 @@ _PG_init(void)
 							 NULL,
 							 NULL,
 							 NULL);
+	DefineCustomStringVariable(TTT_LSN_GUC_NAME,
+							  "WAL position after the last committed write by this backend.",
+							  NULL,
+							  &ttt_last_write_lsn,
+							  "0/0",
+							  PGC_INTERNAL,
+							  GUC_NOT_IN_SAMPLE | GUC_NO_RESET_ALL,
+							  NULL, NULL, NULL);
 
 	MarkGUCPrefixReserved("ttt");
 
